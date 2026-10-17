@@ -53,3 +53,21 @@ def test_motion_kept_until_trigger():
     log = tracker.feed(ev(EventKind.DEATH, 2))
     tracker.add_motion(3.0, 9.0)
     assert log.motion == [(1.0, 5.0)]
+
+
+def test_buy_phase_closes_round_when_alive():
+    tracker = RoundTracker()
+    tracker.feed(ev(EventKind.ROUND_START, 40))
+    log = tracker.feed(ev(EventKind.BUY_PHASE, 145))
+    assert log is not None and log.start == 40 and log.trigger_time == 145
+
+
+def test_buy_menu_flicker_does_not_close_round():
+    tracker = RoundTracker()
+    tracker.feed(ev(EventKind.ROUND_START, 10))  # buy menu opened, banner hidden
+    assert tracker.feed(ev(EventKind.BUY_PHASE, 13)) is None  # menu closed again
+    assert tracker.feed(ev(EventKind.BUY_PHASE, 5)) is None
+
+
+def test_buy_phase_without_round_start_is_ignored():
+    assert RoundTracker().feed(ev(EventKind.BUY_PHASE, 100)) is None

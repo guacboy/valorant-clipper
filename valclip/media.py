@@ -39,6 +39,27 @@ def probe(clip: Path, ffprobe: str) -> ClipInfo:
     return ClipInfo(float(data["format"]["duration"]), "audio" in kinds)
 
 
+def iter_frames(video: Path, ffmpeg: str, fps: int, size: tuple[int, int] = (1920, 1080)):
+    """Yields (clip time, BGR frame) from a recorded video at `fps`, scaled to `size`."""
+    w, h = size
+    proc = subprocess.Popen(
+        [ffmpeg, "-v", "error", "-i", str(video), "-vf", f"fps={fps},scale={w}:{h}",
+         "-pix_fmt", "bgr24", "-f", "rawvideo", "-"],
+        stdout=subprocess.PIPE,
+    )
+    frame_bytes = w * h * 3
+    try:
+        index = 0
+        while chunk := proc.stdout.read(frame_bytes):
+            if len(chunk) < frame_bytes:
+                break
+            yield index / fps, np.frombuffer(chunk, dtype=np.uint8).reshape(h, w, 3)
+            index += 1
+    finally:
+        proc.kill()
+        proc.wait()
+
+
 def motion_scores(clip: Path, ffmpeg: str, start: float, end: float) -> list[tuple[float, float]]:
     """Mean absolute frame difference per sample, as (clip time, score) pairs.
 

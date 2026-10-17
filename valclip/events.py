@@ -3,8 +3,9 @@ from enum import Enum
 
 
 class EventKind(str, Enum):
-    ROUND_START = "round_start"
+    ROUND_START = "round_start"  # combat begins (the buy phase banner goes away)
     ROUND_END = "round_end"
+    BUY_PHASE = "buy_phase"  # next buy phase banner appears; closes a round you survived
     KILL = "kill"
     DEATH = "death"
     ABILITY = "ability"
@@ -29,9 +30,12 @@ class RoundLog:
 class RoundTracker:
     """Collects events for the current round and decides when to make a montage.
 
-    The montage is triggered by the player's death, or by the round end when the
-    player survived. Events after the trigger are ignored until the next round.
+    The montage is triggered by the player's death, or by the round end (or the
+    next buy phase) when the player survived. Events after the trigger are
+    ignored until the next round.
     """
+
+    MIN_ROUND = 20.0  # opening the buy menu hides the banner; ignore "rounds" shorter than this
 
     def __init__(self) -> None:
         self._reset(None)
@@ -52,10 +56,14 @@ class RoundTracker:
             return None
         if self._triggered:
             return None
-        if event.kind in (EventKind.DEATH, EventKind.ROUND_END):
+        if event.kind in (EventKind.ROUND_END, EventKind.BUY_PHASE):
+            if self._start is None or event.time - self._start < self.MIN_ROUND:
+                return None
             self._triggered = True
-            if event.kind is EventKind.DEATH:
-                self._events.append(event)
+            return RoundLog(self._start, event.time, list(self._events), list(self._motion))
+        if event.kind is EventKind.DEATH:
+            self._triggered = True
+            self._events.append(event)
             return RoundLog(self._start, event.time, list(self._events), list(self._motion))
         self._events.append(event)
         return None

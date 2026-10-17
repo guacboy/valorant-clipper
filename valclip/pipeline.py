@@ -9,6 +9,8 @@ from valclip.render import build_command, render
 from valclip.scoring import select_segments
 from valclip.template import Template
 
+TAIL = 0.5  # seconds kept after the trigger; more would show the death cam
+
 
 def make_montage(
     clip: Path,
@@ -20,12 +22,12 @@ def make_montage(
     ffprobe: str,
     encoder: str,
 ) -> Path:
-    """`saved_at` is the wall clock time the replay ended, used to line events up with clip time."""
+    """`saved_at` is the wall clock time the clip ended, used to line events up with clip time."""
     info = probe(clip, ffprobe)
     clip_start = saved_at - info.duration
 
     lo = max(0.0, log.start - clip_start) if log.start is not None else 0.0
-    hi = info.duration  # the replay is saved shortly after the trigger, so it ends there
+    hi = min(info.duration, log.trigger_time - clip_start + TAIL)
     if hi - lo < template.duration:
         lo = max(0.0, hi - template.duration)
 
