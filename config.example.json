@@ -1,0 +1,13 @@
+{
+  "obs_host": "localhost",
+  "obs_port": 4455,
+  "obs_password": "",
+  "capture_monitor": 0,
+  "viewer_monitor": 1,
+  "detect_fps": 10,
+  "post_roll": 1.5,
+  "cues_dir": "assets/cues",
+  "template_dir": "templates/default",
+  "output_dir": "output",
+  "encoder": "h264_nvenc"
+}
