@@ -6,6 +6,7 @@ class EventKind(str, Enum):
     ROUND_START = "round_start"  # combat begins (the buy phase banner goes away)
     ROUND_END = "round_end"
     BUY_PHASE = "buy_phase"  # next buy phase banner appears; closes a round you survived
+    MATCH_START = "match_start"  # the round 1 buy phase banner; a new game began
     KILL = "kill"
     DEATH = "death"
     ABILITY = "ability"
@@ -36,6 +37,7 @@ class RoundTracker:
     """
 
     MIN_ROUND = 20.0  # opening the buy menu hides the banner; ignore "rounds" shorter than this
+    MAX_ROUND = 170.0  # 100s of combat, 45s of spike and the round end screen; longer means a new game
 
     def __init__(self) -> None:
         self._reset(None)
@@ -54,10 +56,13 @@ class RoundTracker:
         if event.kind is EventKind.ROUND_START:
             self._reset(event.time)
             return None
+        if event.kind is EventKind.MATCH_START:
+            self._reset(None)
+            return None
         if self._triggered:
             return None
         if event.kind in (EventKind.ROUND_END, EventKind.BUY_PHASE):
-            if self._start is None or event.time - self._start < self.MIN_ROUND:
+            if self._start is None or not self.MIN_ROUND <= event.time - self._start <= self.MAX_ROUND:
                 return None
             self._triggered = True
             return RoundLog(self._start, event.time, list(self._events), list(self._motion))

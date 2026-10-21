@@ -9,7 +9,6 @@
 import argparse
 import json
 import queue
-import shutil
 import signal
 import threading
 import time
@@ -19,7 +18,8 @@ from pathlib import Path
 from valclip.config import Config, load_config
 from valclip.events import Event, EventKind, RoundLog, RoundTracker
 from valclip.media import find_tool, iter_frames, probe
-from valclip.pipeline import make_montage, montage_path
+from valclip.pipeline import make_montage
+from valclip.storage import clear_game, montage_path, store_replay
 from valclip.template import load_template
 
 
@@ -36,10 +36,13 @@ def cmd_monitors(_: Config) -> None:
         print(f"  {i}: {screen.name()} {g.width()}x{g.height()} at ({g.x()}, {g.y()})")
 
 
-def build_detector(cfg: Config):
-    from valclip.detector import AbilityMeter, Detector, KillFeedReader, load_cues
+NEW_MATCH = "new_match"
 
-    return Detector(load_cues(Path(cfg.cues_dir)), [KillFeedReader(), AbilityMeter()])
+
+def build_detector(cfg: Config):
+    from valclip.detector import AbilityMeter, Detector, KillFeedReader, ScoreReader, load_cues
+
+    return Detector(load_cues(Path(cfg.cues_dir)), [KillFeedReader(), AbilityMeter(), ScoreReader()])
 
 
 def cmd_scan(cfg: Config, video: Path, out_dir: Path) -> None:
@@ -53,7 +56,7 @@ def cmd_scan(cfg: Config, video: Path, out_dir: Path) -> None:
         if (score := meter.update(frame)) is not None:
             tracker.add_motion(t, score)
         for event in detector.process(frame, t):
-            print(f"{int(t // 60)}:{t % 60:05.2f}  {event.kind.value}")
+            print(f"{int(event.time // 60)}:{event.time % 60:05.2f}  {event.kind.value}")
             if log := tracker.feed(event):
                 rounds += 1
                 path = out_dir / f"round_{rounds:02d}.json"
@@ -104,7 +107,7 @@ def cmd_run(cfg: Config) -> None:
     viewer = Viewer(cfg.viewer_monitor, cfg.viewer_scale)
     signals = MontageSignals()
     signals.ready.connect(viewer.play)
-    rounds: queue.Queue[RoundLog] = queue.Queue()
+    jobs: queue.Queue[RoundLog | str] = queue.Queue()  # a round to render, or NEW_MATCH
     stop = threading.Event()
 
     def watch() -> None:
@@ -122,22 +125,28 @@ def cmd_run(cfg: Config) -> None:
                     tracker.add_motion(now, score)
                 for event in detector.process(frame, now):
                     print(f"event: {event.kind.value}")
+                    if event.kind is EventKind.MATCH_START:
+                        jobs.put(NEW_MATCH)
                     if log := tracker.feed(event):
-                        rounds.put(log)
+                        jobs.put(log)
         finally:
             camera.stop()
 
     def work() -> None:
         while not stop.is_set():
             try:
-                log = rounds.get(timeout=0.5)
+                job = jobs.get(timeout=0.5)
             except queue.Empty:
                 continue
+            if job == NEW_MATCH:
+                replays, montages = clear_game(Path(cfg.replay_dir), Path(cfg.output_dir))
+                print(f"new game: deleted {replays} replays and {montages} montages from the last game")
+                continue
+            log = job
             try:
                 time.sleep(max(0.0, log.trigger_time + cfg.post_roll - time.time()))
                 saved, saved_at = obs.save_replay()
-                Path(cfg.replay_dir).mkdir(parents=True, exist_ok=True)
-                clip = Path(shutil.move(saved, Path(cfg.replay_dir) / saved.name))
+                clip = store_replay(saved, Path(cfg.replay_dir))
                 started = time.perf_counter()
                 path = make_montage(clip, log, saved_at, template, montage_path(Path(cfg.output_dir)),
                                     ffmpeg, ffprobe, cfg.encoder)

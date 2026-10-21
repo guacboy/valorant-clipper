@@ -5,8 +5,8 @@ Watches your VALORANT games and builds a short montage of each round while you p
 ## How it works
 
 1. **Detection:** `dxcam` captures the game monitor at a low frame rate and reads the HUD (see [Detection](#detection)). It also measures on-screen motion, which fills slots when nothing else happened.
-2. **Trigger:** your death closes the round. If you survive, the next buy phase banner closes it instead. Only the first trigger per round counts.
-3. **Capture:** the app tells OBS (over obs-websocket) to save its replay buffer.
+2. **Trigger:** your death closes the round. If you survive, the round end closes it instead (the next buy phase banner is a fallback). Only the first trigger per round counts.
+3. **Capture:** the app tells OBS (over obs-websocket) to save its replay buffer, then moves the file into `footage/` as `replay_<timestamp>.mkv`. When a new game starts, the previous game's replays and its montages in `output/` (`round_*.mp4`) are deleted. Only files with those names are ever deleted, so anything else you put in either folder is kept.
 4. **Selection:** events are scored (kills, multikills, spike plants and defuses, utility). Slots with no scored moment are filled with the highest-motion parts of the round.
 5. **Render:** FFmpeg trims the chosen segments, applies the template overlays and music, and encodes with NVENC.
 6. **Viewer:** a frameless, always-on-top window plays the montage centered on the monitor you choose, without taking focus from the game. Click it to close early.
@@ -66,7 +66,7 @@ Event files use seconds from the start of the video, and can also be written by 
 
 `motion` is optional. Without it, `render` measures motion from the video.
 
-Event kinds: `round_start`, `round_end`, `buy_phase`, `kill`, `death`, `ability`, `spike_plant`, `spike_defuse`.
+Event kinds: `round_start`, `round_end`, `buy_phase`, `match_start`, `kill`, `death`, `ability`, `spike_plant`, `spike_defuse`.
 
 ## Config (`config.json`)
 
@@ -79,8 +79,8 @@ Event kinds: `round_start`, `round_end`, `buy_phase`, `kill`, `death`, `ability`
 | `post_roll` | `1.5` | seconds to wait after the trigger before saving the replay |
 | `cues_dir` | `assets/cues` | folder with `cues.json` and cue images |
 | `template_dir` | `templates/default` | montage template folder |
-| `output_dir` | `output` | where montages are written |
-| `replay_dir` | `footage` | where saved round replays are moved |
+| `output_dir` | `output` | where montages are written, kept until the next game starts |
+| `replay_dir` | `footage` | where saved round replays are kept until the next game starts |
 | `viewer_scale` | `0.5` | popup size as a fraction of the monitor (0.5 is a quarter of the screen) |
 | `encoder` | `h264_nvenc` | `h264_nvenc` or `libx264` |
 | `ffmpeg`, `ffprobe` | from PATH | explicit binary paths |
@@ -112,7 +112,9 @@ Detection reads the HUD only. It never touches game memory, so it is safe with V
 
 - **Kills and deaths:** your own kill feed entries have a yellow outline. An outline on the left portrait is your kill, and one on the far right portrait is your death. This works with every weapon skin, unlike the kill banner.
 - **Utility:** each ability slot (C, Q, E and the X ult dots) has a teal charge bar. When one slot loses charge, that is a cast. When several slots change at once (buy menu, spectating), nothing fires.
-- **Rounds:** the "PRESS [B] TO BUY" line under every buy phase banner is a template cue. It disappearing means combat started, and it appearing means the next buy phase. Rounds shorter than 20 seconds are ignored, because opening the buy menu also hides the banner.
+- **Round end:** the two team scores at the top. A score changing and staying for 2 seconds means the round ended, whichever banner is shown (WON, LOST, FLAWLESS, ACE). Only the bright digit strokes are compared, so flashes and bright maps behind the see-through bar do not count.
+- **New game:** the "ROUND1" text on the first buy phase banner. Rounds 2 and later score well below the threshold.
+- **Rounds:** the "PRESS [B] TO BUY" line under every buy phase banner is a template cue. It disappearing means combat started, and it appearing means the next buy phase. Rounds shorter than 20 seconds are ignored, because opening the buy menu also hides the banner. Rounds longer than 170 seconds are ignored too, since that buy phase belongs to the next game.
 - **Spike plants and defuses:** not detected yet.
 
 Template cues live in `assets/cues/cues.json`:

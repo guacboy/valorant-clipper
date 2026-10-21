@@ -175,3 +175,38 @@ def test_ability_meter_resyncs_after_hud_change():
     run_meter(meter, ability_frame(C=1.0, Q=1.0, E=1.0), 0.0)
     run_meter(meter, ability_frame(C=0.5, Q=0.5, E=0.2), 1.0)  # now showing another player's HUD
     assert len(run_meter(meter, ability_frame(C=0.5, Q=0.5, E=0.0), 2.0)) == 1
+
+
+def score_frame(ours, theirs, background=120):
+    import cv2
+
+    frame = np.full((1080, 1920, 3), background, dtype=np.uint8)
+    for text, x in ((ours, 808), (theirs, 1083)):
+        cv2.putText(frame, str(text), (x, 62), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 2)
+    return frame
+
+
+def feed_scores(reader, frame, start, seconds, fps=4):
+    events = []
+    for i in range(int(seconds * fps)):
+        events += reader.update(frame, start + i / fps)
+    return events
+
+
+def test_score_change_ends_round_at_change_time():
+    from valclip.detector import ScoreReader
+
+    reader = ScoreReader()
+    assert feed_scores(reader, score_frame(0, 2), 0.0, 5) == []
+    events = feed_scores(reader, score_frame(0, 3), 10.0, 5)
+    assert [(e.kind, e.time) for e in events] == [(EventKind.ROUND_END, 10.0)]
+
+
+def test_brief_score_glitch_and_washout_are_ignored():
+    from valclip.detector import ScoreReader
+
+    reader = ScoreReader()
+    feed_scores(reader, score_frame(1, 1), 0.0, 2)
+    assert feed_scores(reader, score_frame(7, 1), 2.0, 1) == []  # gone before the hold time
+    assert feed_scores(reader, np.full((1080, 1920, 3), 255, np.uint8), 3.0, 5) == []  # flashed
+    assert feed_scores(reader, score_frame(1, 1), 8.0, 5) == []

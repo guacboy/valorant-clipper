@@ -1,6 +1,5 @@
 """Turns a saved round clip plus its event log into a finished montage."""
 
-import time
 from pathlib import Path
 
 from valclip.events import RoundLog
@@ -41,7 +40,3 @@ def make_montage(
     output.parent.mkdir(parents=True, exist_ok=True)
     render(build_command(clip, segments, template, output, ffmpeg, encoder, info.has_audio))
     return output
-
-
-def montage_path(output_dir: Path) -> Path:
-    return Path(output_dir) / f"round_{time.strftime('%Y%m%d_%H%M%S')}.mp4"

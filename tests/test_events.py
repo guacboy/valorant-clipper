@@ -71,3 +71,24 @@ def test_buy_menu_flicker_does_not_close_round():
 
 def test_buy_phase_without_round_start_is_ignored():
     assert RoundTracker().feed(ev(EventKind.BUY_PHASE, 100)) is None
+
+
+def test_match_start_drops_unfinished_round():
+    tracker = RoundTracker()
+    tracker.feed(ev(EventKind.ROUND_START, 0))
+    tracker.feed(ev(EventKind.KILL, 30))
+    tracker.feed(ev(EventKind.MATCH_START, 400))
+    assert tracker.feed(ev(EventKind.BUY_PHASE, 430)) is None  # no round is open in the new game
+
+
+def test_buy_phase_long_after_round_start_is_ignored():
+    tracker = RoundTracker()
+    tracker.feed(ev(EventKind.ROUND_START, 0))
+    assert tracker.feed(ev(EventKind.BUY_PHASE, 600)) is None  # next game's first buy phase
+
+
+def test_round_end_after_death_is_ignored():
+    tracker = RoundTracker()
+    tracker.feed(ev(EventKind.ROUND_START, 0))
+    assert tracker.feed(ev(EventKind.DEATH, 50)) is not None
+    assert tracker.feed(ev(EventKind.ROUND_END, 80)) is None

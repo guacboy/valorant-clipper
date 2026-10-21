@@ -8,6 +8,8 @@ Three readers look at the HUD:
   on the left portrait when you got the kill, on the right one when you died.
 - AbilityMeter watches the charge bars under C, Q, E and the ult dots under X.
   A bar losing charge means you used that ability.
+- ScoreReader watches the two team scores at the top. A score changing means
+  the round ended, whichever banner (WON, LOST, FLAWLESS, ACE) is shown.
 
 Pixel boxes are measured on 1920x1080 frames and scaled to the real frame size,
 so any 16:9 resolution works.
@@ -208,6 +210,54 @@ class AbilityMeter:
             self._levels[drops[0]] = current[drops[0]]
             return [Event(EventKind.ABILITY, t)]
         return []
+
+
+class ScoreReader:
+    BOXES = ((800, 30, 845, 70), (1075, 30, 1120, 70))  # your team's score, then the enemy's
+    STROKE = 9  # top-hat kernel size; keeps thin bright digit strokes, drops bright backgrounds
+    SAME = 0.6  # digit masks overlapping at least this much show the same score
+    HOLD = 2.0  # seconds a new score must stay before it counts (flashes and smokes pass sooner)
+
+    def __init__(self) -> None:
+        self._score: list[np.ndarray] | None = None
+        self._candidate: list[np.ndarray] | None = None
+        self._since = 0.0
+
+    def _digits(self, frame_bgr: np.ndarray) -> list[np.ndarray] | None:
+        size = max(3, self.STROKE * frame_bgr.shape[0] // REF_H) | 1
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
+        masks = []
+        for box in self.BOXES:
+            region = cv2.cvtColor(_crop(frame_bgr, box), cv2.COLOR_BGR2GRAY)
+            mask = (cv2.morphologyEx(region, cv2.MORPH_TOPHAT, kernel) > 45) & (region > 200)
+            if not 0.01 < mask.mean() < 0.2:
+                return None  # no readable digits (HUD hidden or washed out)
+            masks.append(mask)
+        return masks
+
+    def update(self, frame_bgr: np.ndarray, t: float) -> list[Event]:
+        digits = self._digits(frame_bgr)
+        if digits is None:
+            self._candidate = None
+            return []
+        if self._score is None:
+            self._score = digits
+            return []
+        if _overlap(digits, self._score) >= self.SAME:
+            self._candidate = None
+            return []
+        if self._candidate is None or _overlap(digits, self._candidate) < self.SAME:
+            self._candidate, self._since = digits, t
+            return []
+        if t - self._since < self.HOLD:
+            return []
+        self._score, self._candidate = digits, None
+        return [Event(EventKind.ROUND_END, self._since)]
+
+
+def _overlap(a: list[np.ndarray], b: list[np.ndarray]) -> float:
+    """Lowest intersection over union across the paired masks."""
+    return min(float((x & y).sum() / max(1, (x | y).sum())) for x, y in zip(a, b))
 
 
 class Detector:
