@@ -13,7 +13,7 @@ class MontageSignals(QObject):
 
 
 class Viewer(QVideoWidget):
-    def __init__(self, monitor: int) -> None:
+    def __init__(self, monitor: int, scale: float) -> None:
         super().__init__()
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -24,7 +24,9 @@ class Viewer(QVideoWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         screens = QGuiApplication.screens()
         screen = screens[monitor] if monitor < len(screens) else screens[-1]
-        self.setGeometry(screen.geometry())
+        area = screen.geometry()
+        width, height = int(area.width() * scale), int(area.height() * scale)
+        self.setGeometry(area.x() + (area.width() - width) // 2, area.y() + (area.height() - height) // 2, width, height)
 
         self._audio = QAudioOutput()
         self._player = QMediaPlayer()

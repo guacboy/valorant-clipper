@@ -15,6 +15,8 @@ class Config:
     cues_dir: str = "assets/cues"
     template_dir: str = "templates/default"
     output_dir: str = "output"
+    replay_dir: str = "footage"  # saved round replays are moved here
+    viewer_scale: float = 0.5  # popup size as a fraction of the monitor's width and height
     encoder: str = "h264_nvenc"
     ffmpeg: str | None = None
     ffprobe: str | None = None

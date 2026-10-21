@@ -9,5 +9,7 @@
   "cues_dir": "assets/cues",
   "template_dir": "templates/default",
   "output_dir": "output",
+  "replay_dir": "footage",
+  "viewer_scale": 0.5,
   "encoder": "h264_nvenc"
 }

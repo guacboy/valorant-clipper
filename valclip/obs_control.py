@@ -20,15 +20,20 @@ class ObsController:
         except obs.error.OBSSDKRequestError:
             return None  # nothing saved yet this session
 
-    def save_replay(self, timeout: float = 15.0) -> Path:
-        """Saves the replay buffer and waits until OBS has finished writing the file."""
+    def save_replay(self, timeout: float = 15.0) -> tuple[Path, float]:
+        """Saves the replay buffer and waits until OBS has finished writing the file.
+
+        Returns the file and the wall clock time the replay ends at, which is when
+        the save was requested, not when writing finished.
+        """
         previous = self._last_replay()
+        requested_at = time.time()
         self._client.save_replay_buffer()
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             path = self._last_replay()
             if path and path != previous and _is_stable(Path(path)):
-                return Path(path)
+                return Path(path), requested_at
             time.sleep(0.2)
         raise TimeoutError("OBS did not finish saving the replay in time")
 

@@ -9,7 +9,7 @@ Watches your VALORANT games and builds a short montage of each round while you p
 3. **Capture:** the app tells OBS (over obs-websocket) to save its replay buffer.
 4. **Selection:** events are scored (kills, multikills, spike plants and defuses, utility). Slots with no scored moment are filled with the highest-motion parts of the round.
 5. **Render:** FFmpeg trims the chosen segments, applies the template overlays and music, and encodes with NVENC.
-6. **Viewer:** a frameless, always-on-top window plays the montage on the monitor you choose, without taking focus from the game. Click it to close early.
+6. **Viewer:** a frameless, always-on-top window plays the montage centered on the monitor you choose, without taking focus from the game. Click it to close early.
 
 ## Requirements
 
@@ -80,6 +80,8 @@ Event kinds: `round_start`, `round_end`, `buy_phase`, `kill`, `death`, `ability`
 | `cues_dir` | `assets/cues` | folder with `cues.json` and cue images |
 | `template_dir` | `templates/default` | montage template folder |
 | `output_dir` | `output` | where montages are written |
+| `replay_dir` | `footage` | where saved round replays are moved |
+| `viewer_scale` | `0.5` | popup size as a fraction of the monitor (0.5 is a quarter of the screen) |
 | `encoder` | `h264_nvenc` | `h264_nvenc` or `libx264` |
 | `ffmpeg`, `ffprobe` | from PATH | explicit binary paths |
 

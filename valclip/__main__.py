@@ -9,6 +9,7 @@
 import argparse
 import json
 import queue
+import shutil
 import signal
 import threading
 import time
@@ -100,7 +101,7 @@ def cmd_run(cfg: Config) -> None:
     obs.ensure_replay_buffer()
 
     app = QApplication([])
-    viewer = Viewer(cfg.viewer_monitor)
+    viewer = Viewer(cfg.viewer_monitor, cfg.viewer_scale)
     signals = MontageSignals()
     signals.ready.connect(viewer.play)
     rounds: queue.Queue[RoundLog] = queue.Queue()
@@ -134,8 +135,9 @@ def cmd_run(cfg: Config) -> None:
                 continue
             try:
                 time.sleep(max(0.0, log.trigger_time + cfg.post_roll - time.time()))
-                clip = obs.save_replay()
-                saved_at = time.time()
+                saved, saved_at = obs.save_replay()
+                Path(cfg.replay_dir).mkdir(parents=True, exist_ok=True)
+                clip = Path(shutil.move(saved, Path(cfg.replay_dir) / saved.name))
                 started = time.perf_counter()
                 path = make_montage(clip, log, saved_at, template, montage_path(Path(cfg.output_dir)),
                                     ffmpeg, ffprobe, cfg.encoder)
